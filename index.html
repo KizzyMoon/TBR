@@ -199,6 +199,20 @@
     </form>
   </section>
 
+  <section id="seriesSheet" class="sheet compact-sheet hidden" aria-modal="true" role="dialog" aria-labelledby="seriesSheetTitle">
+    <div class="sheet-handle"></div>
+    <div class="sheet-head">
+      <div><p class="eyebrow">Series found</p><h2 id="seriesSheetTitle">Book series</h2></div>
+      <button class="icon-button close-series-sheet" type="button" aria-label="Close">×</button>
+    </div>
+    <p id="seriesMessage" class="subtle series-question-copy"></p>
+    <div id="seriesPreview" class="series-preview" aria-label="Books found in this series"></div>
+    <div class="two-up">
+      <button id="justOneButton" class="secondary" type="button">Just this book</button>
+      <button id="addSeriesButton" class="primary" type="button">Add whole series</button>
+    </div>
+  </section>
+
   <template id="bookCardTemplate">
     <button class="book-card" type="button">
       <div class="cover-wrap"><img class="book-cover" alt="" loading="lazy" /><div class="cover-placeholder hidden"></div></div>
@@ -207,5 +221,6 @@
   </template>
 
   <script src="./app.js" defer></script>
+  <script src="./series.js" defer></script>
 </body>
 </html>
