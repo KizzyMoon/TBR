@@ -1,5 +1,5 @@
-const CACHE = 'tbr-shell-v2';
-const ASSETS = ['./','./index.html','./styles.css','./app.js','./series.js','./manifest.json','./icons/icon-192.svg','./icons/icon-512.svg'];
+const CACHE = 'tbr-shell-v3';
+const ASSETS = ['./','./index.html','./styles.css','./app.js','./series.js','./manifest.json','./icons/tbr-icon-192.png','./icons/icon-512.svg'];
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
