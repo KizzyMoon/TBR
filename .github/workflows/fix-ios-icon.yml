@@ -1,0 +1,29 @@
+name: Fix iOS icon
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/fix-ios-icon.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fix-icon:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Convert icon to truecolor PNG
+        run: |
+          magick apple-touch-icon.png -alpha off -type TrueColor -strip apple-touch-icon-fixed.png
+          magick apple-touch-icon.png -resize 180x180! -alpha off -type TrueColor -strip icons/tbr-icon-180-fixed.png
+      - name: Commit fixed icons
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          mv apple-touch-icon-fixed.png apple-touch-icon.png
+          mv icons/tbr-icon-180-fixed.png icons/tbr-icon-180.png
+          git add apple-touch-icon.png icons/tbr-icon-180.png
+          git diff --cached --quiet || git commit -m 'Fix iOS Home Screen icon encoding'
+          git push
