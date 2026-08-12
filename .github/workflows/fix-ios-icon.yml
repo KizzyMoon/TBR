@@ -26,8 +26,16 @@ jobs:
           from PIL import Image
           import base64, io
 
-          encoded = Path('.github/icon-source-1.txt').read_text().strip()
-          raw = base64.b64decode(encoded, validate=True)
+          encoded = ''.join(Path('.github/icon-source-1.txt').read_text().split())
+          # The source file contains trailing duplicated base64 data from an earlier upload.
+          # Decode only the first complete base64 payload (through its first padding block).
+          first_pad = encoded.find('=')
+          if first_pad != -1:
+              end = first_pad + 1
+              while end < len(encoded) and encoded[end] == '=':
+                  end += 1
+              encoded = encoded[:end]
+          raw = base64.b64decode(encoded, validate=False)
           source = Image.open(io.BytesIO(raw))
           source.load()
           source = source.convert('RGB')
@@ -38,9 +46,9 @@ jobs:
           print('Decoded icon source:', source.size, source.mode)
 
           outputs = [
-              (180, Path('apple-touch-icon-v4.png')),
-              (192, Path('icons/tbr-icon-192-v4.png')),
-              (512, Path('icons/tbr-icon-512-v4.png')),
+              (180, Path('apple-touch-icon-v5.png')),
+              (192, Path('icons/tbr-icon-192-v5.png')),
+              (512, Path('icons/tbr-icon-512-v5.png')),
           ]
           for size, path in outputs:
               path.parent.mkdir(parents=True, exist_ok=True)
@@ -61,22 +69,22 @@ jobs:
 
           p = Path('index.html')
           html = p.read_text()
-          html = re.sub(r'<link rel="apple-touch-icon"[^>]*>', '<link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon-v4.png">', html)
-          html = re.sub(r'<link rel="icon"[^>]*>', '<link rel="icon" type="image/png" href="./icons/tbr-icon-192-v4.png">', html)
+          html = re.sub(r'<link rel="apple-touch-icon"[^>]*>', '<link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon-v5.png">', html)
+          html = re.sub(r'<link rel="icon"[^>]*>', '<link rel="icon" type="image/png" href="./icons/tbr-icon-192-v5.png">', html)
           p.write_text(html)
 
           p = Path('manifest.json')
           manifest = json.loads(p.read_text())
           manifest['icons'] = [
-              {'src':'./icons/tbr-icon-192-v4.png','sizes':'192x192','type':'image/png','purpose':'any'},
-              {'src':'./icons/tbr-icon-512-v4.png','sizes':'512x512','type':'image/png','purpose':'any'}
+              {'src':'./icons/tbr-icon-192-v5.png','sizes':'192x192','type':'image/png','purpose':'any'},
+              {'src':'./icons/tbr-icon-512-v5.png','sizes':'512x512','type':'image/png','purpose':'any'}
           ]
           p.write_text(json.dumps(manifest, indent=2) + '\n')
 
           p = Path('sw.js')
           sw = p.read_text()
-          sw = re.sub(r"const CACHE = '[^']+';", "const CACHE = 'tbr-shell-v4';", sw)
-          sw = re.sub(r"const ASSETS = \[[^;]+\];", "const ASSETS = ['./','./index.html','./styles.css','./app.js','./series.js','./manifest.json','./apple-touch-icon-v4.png','./icons/tbr-icon-192-v4.png','./icons/tbr-icon-512-v4.png'];", sw)
+          sw = re.sub(r"const CACHE = '[^']+';", "const CACHE = 'tbr-shell-v5';", sw)
+          sw = re.sub(r"const ASSETS = \[[^;]+\];", "const ASSETS = ['./','./index.html','./styles.css','./app.js','./series.js','./manifest.json','./apple-touch-icon-v5.png','./icons/tbr-icon-192-v5.png','./icons/tbr-icon-512-v5.png'];", sw)
           p.write_text(sw)
           PY
 
@@ -84,6 +92,6 @@ jobs:
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add apple-touch-icon-v4.png icons/tbr-icon-192-v4.png icons/tbr-icon-512-v4.png index.html manifest.json sw.js
-          git diff --cached --quiet || git commit -m 'Use clean RGB iOS Home Screen icon'
+          git add apple-touch-icon-v5.png icons/tbr-icon-192-v5.png icons/tbr-icon-512-v5.png index.html manifest.json sw.js
+          git diff --cached --quiet || git commit -m 'Use clean RGB iOS Home Screen icon v5'
           git push
