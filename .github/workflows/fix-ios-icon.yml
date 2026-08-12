@@ -5,6 +5,7 @@ on:
   push:
     paths:
       - '.github/workflows/fix-ios-icon.yml'
+      - '.github/icon-source-1.txt'
 
 permissions:
   contents: write
@@ -14,16 +15,75 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Convert icon to truecolor PNG
+
+      - name: Install Pillow
+        run: python3 -m pip install --quiet pillow
+
+      - name: Build clean iOS and PWA icons
         run: |
-          magick apple-touch-icon.png -alpha off -type TrueColor -strip apple-touch-icon-fixed.png
-          magick apple-touch-icon.png -resize 180x180! -alpha off -type TrueColor -strip icons/tbr-icon-180-fixed.png
+          python3 - <<'PY'
+          from pathlib import Path
+          from PIL import Image
+          import base64, io
+
+          encoded = Path('.github/icon-source-1.txt').read_text().strip()
+          raw = base64.b64decode(encoded, validate=True)
+          source = Image.open(io.BytesIO(raw))
+          source.load()
+          source = source.convert('RGB')
+
+          if source.width != source.height:
+              raise RuntimeError(f'Icon source must be square, got {source.size}')
+
+          print('Decoded icon source:', source.size, source.mode)
+
+          outputs = [
+              (180, Path('apple-touch-icon-v4.png')),
+              (192, Path('icons/tbr-icon-192-v4.png')),
+              (512, Path('icons/tbr-icon-512-v4.png')),
+          ]
+          for size, path in outputs:
+              path.parent.mkdir(parents=True, exist_ok=True)
+              icon = source.resize((size, size), Image.Resampling.LANCZOS).convert('RGB')
+              icon.save(path, format='PNG', optimize=True)
+              check = Image.open(path)
+              check.load()
+              if check.size != (size, size) or check.mode != 'RGB':
+                  raise RuntimeError(f'Bad generated icon {path}: {check.size} {check.mode}')
+              print('Generated', path, check.size, check.mode)
+          PY
+
+      - name: Point site at new uncached icons
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import json, re
+
+          p = Path('index.html')
+          html = p.read_text()
+          html = re.sub(r'<link rel="apple-touch-icon"[^>]*>', '<link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon-v4.png">', html)
+          html = re.sub(r'<link rel="icon"[^>]*>', '<link rel="icon" type="image/png" href="./icons/tbr-icon-192-v4.png">', html)
+          p.write_text(html)
+
+          p = Path('manifest.json')
+          manifest = json.loads(p.read_text())
+          manifest['icons'] = [
+              {'src':'./icons/tbr-icon-192-v4.png','sizes':'192x192','type':'image/png','purpose':'any'},
+              {'src':'./icons/tbr-icon-512-v4.png','sizes':'512x512','type':'image/png','purpose':'any'}
+          ]
+          p.write_text(json.dumps(manifest, indent=2) + '\n')
+
+          p = Path('sw.js')
+          sw = p.read_text()
+          sw = re.sub(r"const CACHE = '[^']+';", "const CACHE = 'tbr-shell-v4';", sw)
+          sw = re.sub(r"const ASSETS = \[[^;]+\];", "const ASSETS = ['./','./index.html','./styles.css','./app.js','./series.js','./manifest.json','./apple-touch-icon-v4.png','./icons/tbr-icon-192-v4.png','./icons/tbr-icon-512-v4.png'];", sw)
+          p.write_text(sw)
+          PY
+
       - name: Commit fixed icons
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          mv apple-touch-icon-fixed.png apple-touch-icon.png
-          mv icons/tbr-icon-180-fixed.png icons/tbr-icon-180.png
-          git add apple-touch-icon.png icons/tbr-icon-180.png
-          git diff --cached --quiet || git commit -m 'Fix iOS Home Screen icon encoding'
+          git add apple-touch-icon-v4.png icons/tbr-icon-192-v4.png icons/tbr-icon-512-v4.png index.html manifest.json sw.js
+          git diff --cached --quiet || git commit -m 'Use clean RGB iOS Home Screen icon'
           git push
