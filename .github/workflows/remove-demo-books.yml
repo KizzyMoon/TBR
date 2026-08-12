@@ -1,0 +1,88 @@
+name: Remove demo books
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/remove-demo-books.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Remove demo library data and migrate saved demo entries
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          app = Path('app.js')
+          text = app.read_text()
+
+          text, count = re.subn(
+              r"const demoBooks = \[.*?\n\];",
+              "const demoBooks = [];",
+              text,
+              count=1,
+              flags=re.S,
+          )
+          if count != 1:
+              raise RuntimeError('Could not replace demoBooks array')
+
+          old_load = re.search(r"function loadLibrary\(\) \{.*?\n\}\n\nfunction saveLibrary", text, flags=re.S)
+          if not old_load:
+              raise RuntimeError('Could not find loadLibrary')
+
+          new_load = '''function loadLibrary() {
+            try {
+              const raw = localStorage.getItem(STORAGE_KEY);
+              if (raw) {
+                const parsed = JSON.parse(raw);
+                const books = Array.isArray(parsed) ? parsed : [];
+                state.books = books.filter(book => !book?.demo);
+                if (state.books.length !== books.length) saveLibrary();
+              } else {
+                state.books = [];
+                saveLibrary();
+              }
+            } catch {
+              state.books = [];
+              saveLibrary();
+            }
+          }
+
+          function saveLibrary'''
+          text = text[:old_load.start()] + new_load + text[old_load.end():]
+
+          text = text.replace("  exportButton: $('exportButton'), importInput: $('importInput'), clearDemoButton: $('clearDemoButton'), editForm: $('editForm'),", "  exportButton: $('exportButton'), importInput: $('importInput'), editForm: $('editForm'),")
+          text = re.sub(r"\n\s*els\.clearDemoButton\.addEventListener\('click'.*?\}\s*\);", "", text, count=1)
+          app.write_text(text)
+
+          index = Path('index.html')
+          html = index.read_text()
+          html, removed = re.subn(
+              r'<div class="settings-card"><h3>Demo books</h3>.*?</div>',
+              '',
+              html,
+              count=1,
+              flags=re.S,
+          )
+          if removed != 1:
+              raise RuntimeError('Could not remove Demo books settings card')
+          index.write_text(html)
+
+          sw = Path('sw.js')
+          sw_text = sw.read_text().replace("const CACHE = 'tbr-shell-v7';", "const CACHE = 'tbr-shell-v8';")
+          sw.write_text(sw_text)
+          PY
+      - name: Commit cleanup
+        run: |
+          git config user.name "Kizzy"
+          git config user.email "107420721+KizzyMoon@users.noreply.github.com"
+          git add app.js index.html sw.js
+          git commit -m "Remove demo books and start empty libraries" || exit 0
+          git push
