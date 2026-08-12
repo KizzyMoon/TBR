@@ -1,4 +1,4 @@
-const CACHE = 'tbr-shell-v7';
+const CACHE = 'tbr-shell-v7-1';
 const ASSETS = ['./','./index.html','./styles.css','./app.js','./storage-safety.js','./series.js','./ui-updates.js','./ui-updates.css','./manifest.json','./apple-touch-icon-v7.png','./icons/tbr-icon-192-v7.png','./icons/tbr-icon-512-v7.png'];
 
 self.addEventListener('install', event => {
