@@ -1,50 +1,6 @@
 const STORAGE_KEY = 'kizzy-tbr-library-v1';
 
-const demoBooks = [
-  {
-    id: 'demo-fourth-wing', title: 'Fourth Wing', author: 'Rebecca Yarros',
-    coverUrl: 'https://covers.openlibrary.org/b/isbn/9781649374042-L.jpg',
-    backCoverUrl: null,
-    summary: 'Enter the brutal and elite world of a war college for dragon riders, where survival depends on strength, strategy, and the bond between rider and dragon.',
-    publishYear: 2023, publisher: 'Entangled: Red Tower Books', dateAdded: '2026-08-08T10:00:00.000Z',
-    status: 'tbr', dateObtained: null, tags: ['High Priority'], notes: '', demo: true
-  },
-  {
-    id: 'demo-cruel-prince', title: 'The Cruel Prince', author: 'Holly Black',
-    coverUrl: 'https://covers.openlibrary.org/b/isbn/9780316310277-L.jpg', backCoverUrl: null,
-    summary: 'Jude was seven when her parents were murdered and she was taken to live in the treacherous High Court of Faerie. Ten years later, she wants nothing more than to belong there, despite her mortality.',
-    publishYear: 2018, publisher: 'Little, Brown Books for Young Readers', dateAdded: '2026-08-07T09:30:00.000Z',
-    status: 'tbr', dateObtained: null, tags: ['On My Radar'], notes: '', demo: true
-  },
-  {
-    id: 'demo-song-achilles', title: 'The Song of Achilles', author: 'Madeline Miller',
-    coverUrl: 'https://covers.openlibrary.org/b/isbn/9780062060624-L.jpg', backCoverUrl: null,
-    summary: 'A sweeping retelling of the story of Achilles and Patroclus: a tale of gods, glory, love, and the terrible cost of war.',
-    publishYear: 2012, publisher: 'Ecco', dateAdded: '2026-08-05T15:00:00.000Z',
-    status: 'tbr', dateObtained: null, tags: ['Maybe Someday'], notes: '', demo: true
-  },
-  {
-    id: 'demo-hobbit', title: 'The Hobbit', author: 'J. R. R. Tolkien',
-    coverUrl: 'https://covers.openlibrary.org/b/isbn/9780547928227-L.jpg', backCoverUrl: null,
-    summary: 'Bilbo Baggins is swept from his comfortable hobbit-hole into an adventure with dwarves, a wizard, a dragon, and a very peculiar ring.',
-    publishYear: 1937, publisher: 'Houghton Mifflin Harcourt', dateAdded: '2026-08-03T12:00:00.000Z',
-    status: 'tbr', dateObtained: null, tags: [], notes: '', demo: true
-  },
-  {
-    id: 'demo-night-circus', title: 'The Night Circus', author: 'Erin Morgenstern',
-    coverUrl: 'https://covers.openlibrary.org/b/isbn/9780307744432-L.jpg', backCoverUrl: null,
-    summary: 'A mysterious circus arrives without warning, open only at night. Behind its black-and-white tents, two young magicians are locked in a dangerous competition.',
-    publishYear: 2011, publisher: 'Anchor', dateAdded: '2026-07-29T18:00:00.000Z',
-    status: 'tbr', dateObtained: null, tags: ['On My Radar'], notes: '', demo: true
-  },
-  {
-    id: 'demo-priory', title: 'The Priory of the Orange Tree', author: 'Samantha Shannon',
-    coverUrl: 'https://covers.openlibrary.org/b/isbn/9781635570304-L.jpg', backCoverUrl: null,
-    summary: 'A sprawling epic of queens, dragons, forbidden magic, and divided kingdoms facing a threat that could consume them all.',
-    publishYear: 2019, publisher: 'Bloomsbury', dateAdded: '2026-07-24T13:00:00.000Z',
-    status: 'tbr', dateObtained: null, tags: ['High Priority'], notes: '', demo: true
-  }
-];
+const demoBooks = [];
 
 const state = {
   books: [],
@@ -68,19 +24,24 @@ const els = {
   detailTagline: $('detailTagline'), detailTitle: $('detailTitle'), detailAuthor: $('detailAuthor'), detailMeta: $('detailMeta'), detailTags: $('detailTags'),
   detailSummary: $('detailSummary'), detailNotes: $('detailNotes'), gotItButton: $('gotItButton'), restoreButton: $('restoreButton'), closeDetailButton: $('closeDetailButton'),
   editBookButton: $('editBookButton'), deleteBookButton: $('deleteBookButton'), pickForMeButton: $('pickForMeButton'), pickAgainButton: $('pickAgainButton'), viewPickedButton: $('viewPickedButton'), pickResult: $('pickResult'),
-  exportButton: $('exportButton'), importInput: $('importInput'), clearDemoButton: $('clearDemoButton'), editForm: $('editForm'), editTitle: $('editTitle'), editAuthor: $('editAuthor'), editTags: $('editTags'), editNotes: $('editNotes')
+  exportButton: $('exportButton'), importInput: $('importInput'), editForm: $('editForm'), editTitle: $('editTitle'), editAuthor: $('editAuthor'), editTags: $('editTags'), editNotes: $('editNotes')
 };
 
 function loadLibrary() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) state.books = JSON.parse(raw);
-    else {
-      state.books = structuredClone(demoBooks);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      const books = Array.isArray(parsed) ? parsed : [];
+      state.books = books.filter(book => !book?.demo);
+      if (state.books.length !== books.length) saveLibrary();
+    } else {
+      state.books = [];
       saveLibrary();
     }
   } catch {
-    state.books = structuredClone(demoBooks);
+    state.books = [];
+    saveLibrary();
   }
 }
 
@@ -316,7 +277,6 @@ function wireEvents() {
   els.detailNotes.addEventListener('change', () => { const b=currentBook(); if(b){b.notes=els.detailNotes.value; saveLibrary();} });
   els.pickForMeButton.addEventListener('click', randomPick); els.pickAgainButton.addEventListener('click', randomPick); els.viewPickedButton.addEventListener('click', () => { const id=state.pickedBookId; closeOverlays(); if(id) openBook(id); });
   els.exportButton.addEventListener('click', exportLibrary); els.importInput.addEventListener('change', e => { if(e.target.files?.[0]) importLibrary(e.target.files[0]); e.target.value=''; });
-  els.clearDemoButton.addEventListener('click', () => { const count=state.books.filter(b=>b.demo).length; if(!count){toast('No demo books left');return;} if(confirm(`Remove ${count} demo books?`)){state.books=state.books.filter(b=>!b.demo); saveLibrary(); render(); toast('Demo books removed');} });
   els.editForm.addEventListener('submit', saveEdit);
 }
 
