@@ -1,0 +1,54 @@
+name: Fix add book timeout
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-add-book-timeout.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch app.js so book details cannot block adding
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('app.js')
+          s = p.read_text()
+
+          old = """async function fetchWorkDetails(key) {\n  try {\n    const res = await fetch(`https://openlibrary.org${key}.json`); if (!res.ok) return null; return await res.json();\n  } catch { return null; }\n}\n"""
+          new = """async function fetchWorkDetails(key) {\n  const controller = new AbortController();\n  const timeout = setTimeout(() => controller.abort(), 4500);\n  try {\n    const res = await fetch(`https://openlibrary.org${key}.json`, { signal: controller.signal });\n    if (!res.ok) return null;\n    return await res.json();\n  } catch {\n    return null;\n  } finally {\n    clearTimeout(timeout);\n  }\n}\n"""
+          if old not in s:
+              raise SystemExit('fetchWorkDetails block not found')
+          s = s.replace(old, new)
+
+          old2 = """async function addSearchResult(index) {\n  const r = state.latestSearchResults[index]; if (!r) return;\n  els.bookSearchStatus.textContent = 'Adding book…';\n  const work = r.key ? await fetchWorkDetails(r.key) : null;\n  const isbn = Array.isArray(r.isbn) ? r.isbn.find(x => /^97[89]/.test(x)) || r.isbn[0] : null;\n"""
+          new2 = """async function addSearchResult(index) {\n  const r = state.latestSearchResults[index]; if (!r) return;\n  els.bookSearchStatus.textContent = 'Adding book…';\n  let work = null;\n  try {\n    work = r.key ? await fetchWorkDetails(r.key) : null;\n  } catch {\n    work = null;\n  }\n  const isbn = Array.isArray(r.isbn) ? r.isbn.find(x => /^97[89]/.test(x)) || r.isbn[0] : null;\n"""
+          if old2 not in s:
+              raise SystemExit('addSearchResult header not found')
+          s = s.replace(old2, new2)
+
+          p.write_text(s)
+          PY
+
+      - name: Bump service worker cache
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('sw.js')
+          s=p.read_text()
+          s=s.replace("const CACHE = 'tbr-shell-v7';", "const CACHE = 'tbr-shell-v8';")
+          p.write_text(s)
+          PY
+
+      - name: Commit fix
+        run: |
+          git config user.name "Kizzy"
+          git config user.email "107420721+KizzyMoon@users.noreply.github.com"
+          git add app.js sw.js
+          git commit -m "Prevent add book from hanging on Open Library details"
+          git push
