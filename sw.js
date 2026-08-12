@@ -1,5 +1,5 @@
-const CACHE = 'tbr-shell-v6';
-const ASSETS = ['./','./index.html','./styles.css','./app.js','./series.js','./manifest.json','./apple-touch-icon-v6.png','./icons/tbr-icon-192-v6.png','./icons/tbr-icon-512-v6.png'];
+const CACHE = 'tbr-shell-v7';
+const ASSETS = ['./','./index.html','./styles.css','./app.js','./storage-safety.js','./series.js','./manifest.json','./apple-touch-icon-v6.png','./icons/tbr-icon-192-v6.png','./icons/tbr-icon-512-v6.png'];
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
