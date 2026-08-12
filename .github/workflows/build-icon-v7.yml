@@ -1,0 +1,87 @@
+name: Build clean icon v7
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/build-icon-v7.yml'
+      - '.github/icon-v7/**'
+
+permissions:
+  contents: write
+
+jobs:
+  build-icon:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Pillow
+        run: python3 -m pip install --quiet pillow
+
+      - name: Rebuild icon from clean source chunks
+        run: |
+          cat .github/icon-v7/chunk_*.txt | tr -d '\n\r ' | base64 -d > /tmp/tbr-icon-source.png
+          python3 - <<'PY'
+          from PIL import Image
+          from pathlib import Path
+
+          src = Image.open('/tmp/tbr-icon-source.png')
+          src.load()
+          src = src.convert('RGB')
+          if src.size != (180, 180):
+              raise RuntimeError(f'Unexpected source icon size: {src.size}')
+
+          outputs = [
+              (180, Path('apple-touch-icon-v7.png')),
+              (192, Path('icons/tbr-icon-192-v7.png')),
+              (512, Path('icons/tbr-icon-512-v7.png')),
+          ]
+          for size, path in outputs:
+              path.parent.mkdir(parents=True, exist_ok=True)
+              img = src.resize((size, size), Image.Resampling.LANCZOS).convert('RGB')
+              img.save(path, 'PNG', optimize=True)
+              check = Image.open(path)
+              check.load()
+              if check.size != (size, size) or check.mode != 'RGB':
+                  raise RuntimeError(f'Generated icon invalid: {path} {check.size} {check.mode}')
+              print(f'{path}: {check.size} {check.mode}')
+          PY
+
+      - name: Point the site at v7 icons
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import json, re
+
+          p = Path('index.html')
+          html = p.read_text()
+          html = re.sub(r'<link rel="apple-touch-icon"[^>]*>', '<link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon-v7.png">', html)
+          html = re.sub(r'<link rel="icon"[^>]*>', '<link rel="icon" type="image/png" sizes="192x192" href="./icons/tbr-icon-192-v7.png">', html)
+          p.write_text(html)
+
+          p = Path('manifest.json')
+          manifest = json.loads(p.read_text())
+          manifest['icons'] = [
+              {'src':'./icons/tbr-icon-192-v7.png','sizes':'192x192','type':'image/png','purpose':'any'},
+              {'src':'./icons/tbr-icon-512-v7.png','sizes':'512x512','type':'image/png','purpose':'any'}
+          ]
+          p.write_text(json.dumps(manifest, indent=2) + '\n')
+
+          p = Path('sw.js')
+          sw = p.read_text()
+          sw = re.sub(r"const CACHE = '[^']+';", "const CACHE = 'tbr-shell-v7';", sw)
+          sw = re.sub(r"const ASSETS = \[[^;]+\];", "const ASSETS = ['./','./index.html','./styles.css','./app.js','./storage-safety.js','./series.js','./ui-updates.js','./ui-updates.css','./manifest.json','./apple-touch-icon-v7.png','./icons/tbr-icon-192-v7.png','./icons/tbr-icon-512-v7.png'];", sw)
+          p.write_text(sw)
+          PY
+
+      - name: Commit clean icon files
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add apple-touch-icon-v7.png icons/tbr-icon-192-v7.png icons/tbr-icon-512-v7.png index.html manifest.json sw.js
+          git diff --cached --quiet && exit 0
+          git commit -m 'Use clean original TBR icon assets'
+          git push
