@@ -169,16 +169,29 @@ function renderSearchResults(results) {
 }
 
 async function fetchWorkDetails(key) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 4500);
   try {
-    const res = await fetch(`https://openlibrary.org${key}.json`); if (!res.ok) return null; return await res.json();
-  } catch { return null; }
+    const res = await fetch(`https://openlibrary.org${key}.json`, { signal: controller.signal });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 function parseDescription(desc) { if (!desc) return ''; return typeof desc === 'string' ? desc : (desc.value || ''); }
 
 async function addSearchResult(index) {
   const r = state.latestSearchResults[index]; if (!r) return;
   els.bookSearchStatus.textContent = 'Adding book…';
-  const work = r.key ? await fetchWorkDetails(r.key) : null;
+  let work = null;
+  try {
+    work = r.key ? await fetchWorkDetails(r.key) : null;
+  } catch {
+    work = null;
+  }
   const isbn = Array.isArray(r.isbn) ? r.isbn.find(x => /^97[89]/.test(x)) || r.isbn[0] : null;
   const coverUrl = r.cover_i ? `https://covers.openlibrary.org/b/id/${r.cover_i}-L.jpg` : (isbn ? `https://covers.openlibrary.org/b/isbn/${isbn}-L.jpg` : null);
   const book = {
